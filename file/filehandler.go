@@ -11,6 +11,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 )
 
+var blackList = map[string]int {
+	"BirthdayMysteryBox.json": 0,
+	"UserHasntSeenGameStatsInfoX.json": 0,
+	"UserHasntSeenLgWinStatsX.json": 0,
+	"UserIsMakingProgressTowardASavingsMissionAndIsCloseToGettingRewardX.json": 0,
+	"UserIsMakingProgressTowardAStreakMissionAndIsCloseToGettingRewardX.json": 0,
+}
+
 
 func GetFiles(basePath string, bucket string) {
 	fi, err := ioutil.ReadDir(basePath)
@@ -19,36 +27,46 @@ func GetFiles(basePath string, bucket string) {
 		return
 	}
 
-	for i, fi := range fi {
+	counter := 0
+	for _, fi := range fi {
 		p := path.Join(basePath, fi.Name())
-		logger.Log("Got file #", i, p)
 		f, err := os.Open(p)
 		if err != nil {
 			logger.Error("Could not read file:", p, "Failed with error:", err)
 			continue
 		}
 
-		uploadToS3(f, bucket)
+		suc := uploadToS3(f, bucket)
+		if suc {
+			counter += 1
+		}
 	}
+
+	logger.Log("Uploaded:", counter, "files to s3 bucket:", bucket)
 }
 
-func uploadToS3(f *os.File, bucket string) {
-	parts := strings.Split(f.Name(), "/")
-	n := parts[len(parts) - 1]
-	if !strings.Contains(n, ".json") {
-		return
+func uploadToS3(f *os.File, bucket string) bool {
+	n := getFileName(f)
+	// _, hasFile := whiteList[n]
+
+	_, isBlkListed := blackList[n]
+	if !strings.Contains(n, ".json") || isBlkListed {
+		logger.Warn("Not uploading file:", n, "to s3")
+		return false
 	}
 
-	//if n != "TestName.json" {
-	//	return
-	//}
+	logger.Log("Uploading file:", n, "to s3")
 
-	s, _ := session.NewSession(&aws.Config{
+	s, err := session.NewSession(&aws.Config{
 		Region: aws.String("us-east-1")},
 	)
 
-	uploader := s3manager.NewUploader(s)
+	if err != nil {
+		logger.Error("Could not start aws session to upload:", n, "error: err")
+		return false
+	}
 
+	uploader := s3manager.NewUploader(s)
 	result, err := uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(n),
@@ -57,8 +75,14 @@ func uploadToS3(f *os.File, bucket string) {
 
 	if err != nil {
 		logger.Error("Failed to upload file:", f.Name(), "to bucket:", bucket, "error:", err)
-		return
+		return false
 	}
 
 	logger.Log("Uploaded file:", f.Name(), "to bucket:", bucket, "with result:", result)
+	return true
+}
+
+func getFileName(f *os.File) string {
+	parts := strings.Split(f.Name(), "/")
+	return parts[len(parts) - 1]
 }
