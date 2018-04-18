@@ -45,6 +45,71 @@ func GetFiles(basePath string, bucket string) {
 	logger.Log("Uploaded:", counter, "files to s3 bucket:", bucket)
 }
 
+func GetFilesLocal(basePath string, targetPath string) {
+	files, err := ioutil.ReadDir(basePath)
+	if err != nil {
+		logger.Error("Could not read files from target path:", basePath, "error:", err)
+		return
+	}
+
+	for _, fi := range files {
+		p := path.Join(targetPath, fi.Name())
+		err = os.RemoveAll(p)
+		if err != nil {
+			logger.Error("Could not remove file", p, "error:", err)
+			continue
+		}
+
+		logger.Log("Removed file:", p)
+	}
+
+	files, err = ioutil.ReadDir(basePath)
+	if err != nil {
+		logger.Error("Could not read files from base path:", basePath, "error:", err)
+		return
+	}
+
+	counter := 0
+	for _, fi := range files {
+		_, isBlkListed := blackList[fi.Name()]
+		if !strings.Contains(fi.Name(), ".json") || isBlkListed {
+			logger.Warn("Not copying file:", fi.Name(), "to:", targetPath)
+			continue
+		}
+
+		p := path.Join(basePath, fi.Name())
+		f, err := os.Open(p)
+		if err != nil {
+			logger.Error("Could not read file:", p, "Failed with error:", err)
+			continue
+		}
+
+		d, err := ioutil.ReadAll(f)
+		if err != nil {
+			logger.Error("Could not read file", p, "error:", err)
+			continue
+		}
+
+		tp := path.Join(targetPath, fi.Name())
+		_, err = os.Create(tp)
+		if err != nil {
+			logger.Error("Could not create file:", tp, "error:", err)
+			continue
+		}
+
+		err = ioutil.WriteFile(tp, d, 0644)
+		if err != nil {
+			logger.Error("Could not write file:", tp, "error:", err)
+			continue
+		}
+
+		logger.Log("Copied file:", tp)
+		counter += 1
+	}
+
+	logger.Log("Moved:", counter, "files to local dir:", targetPath)
+}
+
 func uploadToS3(f *os.File, bucket string) bool {
 	n := getFileName(f)
 	// _, hasFile := whiteList[n]
