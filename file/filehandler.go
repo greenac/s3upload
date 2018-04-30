@@ -17,6 +17,7 @@ var blackList = map[string]int {
 	"UserHasntSeenLgWinStatsX.json": 0,
 	"UserIsMakingProgressTowardASavingsMissionAndIsCloseToGettingRewardX.json": 0,
 	"UserIsMakingProgressTowardAStreakMissionAndIsCloseToGettingRewardX.json": 0,
+	"LevelXIncompleteProgress2": 0,
 }
 
 
